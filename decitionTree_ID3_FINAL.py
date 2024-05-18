@@ -11,9 +11,8 @@ class Tree:
         self.uniqueValues = {col: dataframe[col].unique().tolist() for col in dataframe}
 
 class Node:
-    def __init__(self, edgeValue=None, count=None):
-        self.edgeValue = edgeValue
-        self.count = count
+    def __init__(self, type):
+        self.type = type
         self.children = []
     
     def addLeafNode(self, attributeValue, targetValue, count):
@@ -32,6 +31,7 @@ class Attribute(Node):
         self.attribute = attribute 
         self.isDiscreteType = isDiscreteType
         self.count = count
+        self.majorTargetValue = majorTargetValue
         self.attributeValue = attributeValue
         
     def setAttribute(self, attribute):
