@@ -78,7 +78,6 @@ def buildTree(dataframe: pd.DataFrame, parentNode=None, uniqueValues=None):
     else: #Column Type is Continuous
         continuousChildren(dataframe, parentNode, bestSplit, uniqueValues)
         
-        
     return parentNode
 
 def continuousChildren(dataframe, parentNode, bestSplit, uniqueValues):
