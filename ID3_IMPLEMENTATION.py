@@ -1,16 +1,13 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import KFold
-from graphviz import Digraph
 
+#Main-Class
 class Node:
     def __init__(self, attributeValue, count):
         self.attributeValue = attributeValue
         self.count = count
-        
-    
+
+#Sub-Class: Attribute      
 class Attribute(Node):
     def __init__(self, attribute=None, isDiscreteType=None, majorTargetValue=None, attributeValue=None, count=None):
         super().__init__(attributeValue, count)
@@ -29,12 +26,13 @@ class Attribute(Node):
         self.children.append(child)
         return child 
 
+#Sub-Class: Leaf
 class Leaf(Node):
     def __init__(self, targetValue, attributeValue, count=None):
         super().__init__(attributeValue, count)
         self.targetValue = targetValue
 
-        
+#        
 def buildTree(dataframe: pd.DataFrame, parentNode=None, uniqueValues=None):
     target, attributes = dataframe.iloc[:, -1], dataframe.iloc[:, :-1]
     bestAttribute, bestSplit = getMostInformativeFeature(attributes, target)
@@ -59,6 +57,7 @@ def buildTree(dataframe: pd.DataFrame, parentNode=None, uniqueValues=None):
         
     return parentNode
 
+#
 def continuousChildren(dataframe, parentNode, bestSplit, uniqueValues):
     dfLessEqual = (dataframe.loc[dataframe[parentNode.attribute] <= bestSplit]).drop(columns=parentNode.attribute)
     dfGreater = (dataframe.loc[dataframe[parentNode.attribute] > bestSplit]).drop(columns=parentNode.attribute)
@@ -70,6 +69,7 @@ def continuousChildren(dataframe, parentNode, bestSplit, uniqueValues):
         createNewNode(parentNode, childDataFrame, attributeValue, uniqueValues)
     return
 
+#
 def discreteChildren(dataframe, parentNode, currentValues, uniqueValues):
     for attributeValue in currentValues:
             childDataFrame = (dataframe[dataframe[parentNode.attribute] == attributeValue]).drop(columns=parentNode.attribute)
@@ -77,12 +77,14 @@ def discreteChildren(dataframe, parentNode, currentValues, uniqueValues):
             createNewNode(parentNode, childDataFrame, attributeValue, uniqueValues)
     return
 
+#
 def leafForValueNotInCurrValues(parentNode, currentValues, allAttributeValues):
     for attributeValue in allAttributeValues:
         if attributeValue not in currentValues:
-            parentNode.addLeafNode(attributeValue, parentNode.majorTargetValue, 0)
+            parentNode.addLeafNode(parentNode.majorTargetValue, attributeValue, 0)
     return
 
+#
 def createNewNode(parentNode, childDataFrame, attributeValue, uniqueValues):
     counts = childDataFrame.iloc[:, -1].value_counts()
     count = len(childDataFrame)
@@ -100,16 +102,14 @@ def isAttributesAvailable(childDataFrame):
 def isNodePure(counts):
     return len(counts) == 1
 
-
-
-#Standard Entropy
+#Universal Entropy Calculation
 def entropy(target: pd.DataFrame):
     counts = target.value_counts()
     probs = counts/len(target)
     return np.sum(-probs * np.log2(probs))
 
 
-#Continous Entropy
+#Continous Split Function for Calculation Entropy
 def continousEntropy(feature, target):
     dfTemp = pd.concat([feature, target], axis=1)
     entropyResults = {}
@@ -137,7 +137,7 @@ def splitEntropy(df: pd.DataFrame, splitPoint):
     totalWeightedEntropy = lessEqualEntropy * len(dfLessEqual)/n + greaterEntropy * len(dfGreater)/n
     return totalWeightedEntropy
 
-#Discrete Entropy
+#Discrete Split Function for Calculation Entropy
 def  discreteEntropy(feature, target):
     dfTemp = pd.concat([feature, target], axis=1)
     uniqueValues = feature.unique()
@@ -173,96 +173,3 @@ def getMostInformativeFeature(attributes, target):
             bestInfoAttribute = attributeCol
             bestSplit = splitPoint
     return bestInfoAttribute, bestSplit
-
-#Function to predict the target value for test dataset
-def predictClass(node, rowData):
-    if isinstance(node, Leaf):
-        return node.targetValue
-    
-    for child in node.children:
-        if node.isDiscreteType:
-            if child.attributeValue == rowData[node.attribute]:
-                return predictClass(child, rowData)
-        else:
-            if child.attributeValue.startswith("<="):
-                if rowData[node.attribute] <= float(child.attributeValue.lstrip("<=")):
-                    return predictClass(child, rowData)
-            elif child.attributeValue.startswith(">"):
-                if rowData[node.attribute] > float(child.attributeValue.lstrip(">")):
-                    return predictClass(child, rowData)
-
-
-def addPredictedColumn(rootNode, testData: pd.DataFrame):
-    predicted = []
-    
-    for _, row in testData.iterrows():
-        predictedClass = predictClass(rootNode, row)
-        predicted.append(predictedClass)
-    testData['Predicted Class'] = predicted
-    return testData     
-
-def calculateAccuracy(testData):
-    return accuracy_score(testData.iloc[:, -2], testData.iloc[:, -1])  
-
-#Run de ID3 algorithim
-def runID3_TRAINTEST(datasource):
-    df = preProcess(pd.read_csv(datasource, keep_default_na=False))
-    trainData, testData = train_test_split(df, test_size=0.2, random_state=42)
-    rootNode = buildTree(trainData)
-    testData = addPredictedColumn(rootNode, testData)
-    print(testData)
-    buildTreeImg(rootNode, "iris")
-    return calculateAccuracy(testData)
-
-def runID3_ALLDATA(datasource):
-    df = preProcess(pd.read_csv(datasource, keep_default_na=False))
-    rootNode = buildTree(df)
-    
-    buildTreeImg(rootNode, "iris")
-
-def buildTreeImg(rootNode, dataset_name):
-    dot = exportTree(rootNode)
-    dot.render("f{dataset_name}_ID3_DT", format="png")
-    dot.view()
-
-def exportTree(node, dot=None, parent_name=None, edge_label=""):
-    if dot is None:
-        dot = Digraph()
-    
-    if isinstance(node, Attribute):
-        node_label = f"{node.attribute}"
-    elif isinstance(node, Leaf):
-        node_label = f"{node.targetValue}\n{node.count}"
-    
-    curr_node_name = f"{id(node)}" 
-    dot.node(curr_node_name, label=node_label, shape="ellipse" if isinstance(node, Leaf) else "box")
-    
-    if parent_name is not None:
-        dot.edge(parent_name, curr_node_name, label=edge_label)
-    if isinstance(node, Attribute):
-        for child in node.children:
-            edge_label = child.attributeValue
-            exportTree(child, dot, curr_node_name, edge_label)
-                   
-    return dot
-    
-#O que fazer com o restaurant.csv que usa a palavra None como nan ao botar no pandas?
-def preProcess(dataframe: pd.DataFrame):
-    if 'ID' in dataframe.columns:
-        dataframe.set_index('ID', inplace=True)   
-    return dataframe
-
-#runID3_ALLDATA('datasets/iris.csv')
-runID3_TRAINTEST('datasets/iris.csv')
-
-        
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
